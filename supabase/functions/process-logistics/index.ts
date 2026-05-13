@@ -10,7 +10,6 @@ serve(async (req) => {
     .select('*')
     .is('ai_insight', null)
     .not('arrive_target', 'is', null)
-
   if (error) return new Response(error.message, { status: 500 })
   if (!records || records.length === 0) return new Response("No data", { status: 200 })
 
