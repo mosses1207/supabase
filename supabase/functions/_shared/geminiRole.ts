@@ -54,52 +54,40 @@ async function markAsLimit(key: string, modelCol: string) {
     .eq('key', key);
 }
 
-async function prosesGemini(base64Images?: string | string[]) {
-  // ✅ Fix 1: promptText dideklarasi DULU sebelum dipakai
+async function prosesGemini(base64Images?: string | string[], rawTextFromOCR?: string) {
+  // 1. Deklarasikan Prompt DULU di paling atas
   const promptText = `
 Kamu adalah spesialis OCR dokumen logistik SJKB.
 Tugas:
-1. Ekstrak "no_sjkb" format: NVDC[AREA]/[ANGKA]/[ANGKA]/[ANGKA] (Tanpa Spasi) total 24 karakter.
-2. Ekstrak "tujuan" (Nama Dealer/Lokasi).
-Logika No SJKB:
-- Area WAJIB salah satu dari: NVDCCIB, NVDCSTR, atau NVDCKRW.
-- Gunakan akhiran untuk koreksi: ...CIB = NVDCCIB, ...STR = NVDCSTR, ...KRW = NVDCKRW.
-- No SJKB harus memiliki 3 buah tanda garis miring (/). Jika kurang, periksa kembali pembacaan karakter.
-- Gunakan 3 karakter terakhir nomer sjkb dari salah satu : /SD , /SC , /U1, /U2, /U3, /U4, /U5, /U6, /ST Jika tidak, periksa kembali pembacaan karakter.
-- Tidak ada karakter -, jika ada periksa kembali, kemungkinan jika -1 adalah angka 4
-Logika Tujuan:
-- Cari teks setelah label "Tujuan :" atau "juan : " atau "an :" " atau "n :". Contoh: "Astrido Toyota Tangerang".
-- Jika label tidak ada, ambil baris teks tepat di bawah tulisan "NVDC CIBITUNG", "NVDC SUNTER", atau "NVDC KARAWANG".
-Aturan Ketat:
-- Perbaiki typo OCR: O jadi 0, I/L jadi 1 pada bagian angka.
-- Dilarang menambah teks penjelasan di luar JSON.
-- Jika data tidak ditemukan, isi dengan null.
+( prompt nanti di benerin selesai garap module kamera )
 Output JSON:
 {
-  "success": true,
-  "no_sjkb": "...",
-  "tujuan": "..."
+( prompt outputjuga selesai garap module kamera)
 }
 `.trim();
 
-  // ✅ Fix 2: parts cukup satu kali, pakai array images
+  // 2. Susun "parts" berdasarkan apa yang dikirim
   const parts: any[] = [];
 
   if (base64Images) {
+    // MODE SENJATA BERAT (GAMBAR)
     const images = Array.isArray(base64Images) ? base64Images : [base64Images];
     for (const img of images) {
       parts.push({
-        inline_data: {
-          mime_type: 'image/jpeg',
-          data: img,
-        }
+        inline_data: { mime_type: 'image/jpeg', data: img }
       });
     }
+    parts.push({ text: `${promptText}\n\nEKSTRAK DARI GAMBAR DI ATAS.` });
+  } else if (rawTextFromOCR) {
+    // MODE HEMAT (TEXT ONLY)
+    parts.push({ 
+      text: `${promptText}\n\nDATA MENTAH OCR UNTUK DIPERBAIKI:\n"${rawTextFromOCR}"` 
+    });
+  } else {
+    throw new Error('Tidak ada gambar atau teks yang dikirim.');
   }
 
-  parts.push({ text: promptText });
-
-  // Coba slot yang tersedia, retry kalau limit
+  // 3. Masuk ke Loop Rotasi API Key (Slot)
   while (true) {
     const slot = await getAvailableSlot();
     if (!slot) throw new Error('Semua API key sudah limit');
@@ -110,15 +98,13 @@ Output JSON:
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }]
-        })
+        body: JSON.stringify({ contents: [{ parts }] })
       });
 
       if (res.status === 429 || res.status === 503) {
-        console.warn(`Limit! ${slot.key} → ${slot.modelCol}, ganti slot...`);
+        console.warn(`Limit! ${slot.key}, ganti slot...`);
         await markAsLimit(slot.key, slot.modelCol);
-        continue;
+        continue; 
       }
 
       if (!res.ok) {
@@ -127,9 +113,8 @@ Output JSON:
       }
 
       const data = await res.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-
-      const clean = rawText.replace(/```json|```/g, '').trim();
+      const rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      const clean = rawResponse.replace(/```json|```/g, '').trim();
       return JSON.parse(clean);
 
     } catch (e) {
