@@ -15,12 +15,12 @@ jobs:
         with:
           version: latest
 
-     - name: Deploy OCR SJKB
+      - name: Deploy OCR SJKB
         run: supabase functions deploy ocrsjkb --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Deploy Notif (Logic Arrive Target)
+      - name: Deploy Notif
         run: supabase functions deploy notif --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
