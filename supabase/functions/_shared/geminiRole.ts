@@ -85,11 +85,12 @@ Catatan khusus untuk key "success": Berikan nilai true jika minimal 'no_sjkb' AT
 
   const parts: any[] = [];
 
-  if (base64Images) {
+if (base64Images) {
     const images = Array.isArray(base64Images) ? base64Images : [base64Images];
     for (const img of images) {
       parts.push({
-        inline_data: { mime_type: 'image/jpeg', data: img }
+        // 🔥 Ganti jadi 'image/png' agar singkron dengan camera.js
+        inline_data: { mime_type: 'image/png', data: img }
       });
     }
     parts.push({ text: `${promptText}\n\nEKSTRAK DARI GAMBAR DI ATAS.` });
