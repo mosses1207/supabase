@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { prosesGemini } from "../_shared/geminiRole.ts";
 
 const corsHeaders = {
@@ -7,8 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
-  // ✅ Handle preflight OPTIONS
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -19,18 +17,12 @@ serve(async (req) => {
 
     return new Response(JSON.stringify(result), {
       status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders, // ✅ CORS headers ikut di response utama
-      },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   } catch (error: any) {
     return new Response(JSON.stringify({ success: false, error: error.message }), {
       status: 500,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders, // ✅ Jangan lupa di error response juga
-      },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 });
