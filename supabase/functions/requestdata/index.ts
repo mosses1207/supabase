@@ -18,17 +18,24 @@ const corsHeaders = {
  */
 async function kompresKeBase64Gzip(stringData: string): Promise<string> {
   const byteArray = new TextEncoder().encode(stringData);
+  
+  // Buat CompressionStream untuk Gzip
   const cs = new CompressionStream("gzip");
   const writer = cs.writable.getWriter();
   writer.write(byteArray);
   writer.close();
   
-  const compressedBuffer = await ArrayBuffer.from(cs.readable);
-  const uint8Array = new Uint8Array(compressedBuffer);
+  // 🔥 FIX: Gunakan objek Response untuk membaca ReadableStream menjadi ArrayBuffer secara native
+  const buffer = await new Response(cs.readable).arrayBuffer();
+  
+  // Ubah ArrayBuffer menjadi Uint8Array dan susun menjadi binary string
+  const uint8Array = new Uint8Array(buffer);
   let binaryString = "";
   for (let i = 0; i < uint8Array.length; i++) {
     binaryString += String.fromCharCode(uint8Array[i]);
   }
+  
+  // Encode ke Base64
   return btoa(binaryString);
 }
 
