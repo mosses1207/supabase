@@ -53,7 +53,7 @@ async function markAsLimit(key: string, modelCol: string, modelName: string) {
 // =========================================================================
 // 🤖 ENGINE PROSES GEMINI MULTIMODAL + ESTIMASI KOORDINAT
 // =========================================================================
-async function prosesGemini(base64Images?: string | string[], rawTextFromOCR?: string) {
+export async function prosesGemini(base64Images?: string | string[], rawTextFromOCR?: string) {
   const promptText = `
 Kamu adalah spesialis OCR dokumen logistik SJKB (Surat Jalan Kendaraan Baru).
 Tugasmu adalah menganalisis data teks hancur hasil OCR atau gambar potongan dokumen, lalu lakukan ekstraksi ke dalam field logistik dengan akurat.
