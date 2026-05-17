@@ -56,9 +56,59 @@ async function markAsLimit(key: string, modelCol: string, modelName: string) {
 export async function prosesGemini(base64Images?: string | string[], rawTextFromOCR?: string) {
   const promptText = `
 Kamu adalah spesialis OCR dokumen logistik SJKB (Surat Jalan Kendaraan Baru).
-Tugasmu adalah menganalisis data teks hancur hasil OCR atau gambar potongan dokumen, lalu lakukan ekstraksi ke dalam field logistik dengan akurat.
-Perbaiki segala bentuk typo pembacaan (misal: "tuj: rp sunlake" menjadi "SUNLAKE", "M0T0R" menjadi "MOTOR").
+Tugasmu adalah menganalisis data teks hancur dari dalam gambar potongan dokumen, lalu lakukan ekstraksi ke dalam field logistik dengan akurat.
+Perbaiki segala bentuk typo pembacaan.
 Jangan ngarang, jangan sok tahu, jangan mengada-ada, kalau tidak tahu set menjadi null saja.
+fokus pada pembacaan tabel saja, contoh skip tulisan PT toyta ASTRA MOTOR dan SURAT JALAN KENDARAAN BARU atau yang tidak memiliki identitas pemilik 
+
+Core yang wajib di analisa tanpa salah pada bagian no sjkb.
+itu adalah kombinasi dari
+1. NVDCCIB, atau NVDCSTR, Atau NVDCKRW kemudian tanda /
+2. kombinasi tahun bulan tanggal, misal  20260505 kemudia tanda /
+3. kombinasi angka 4 digit kemudian tanda /
+4. kombinasi dari kode pengiriman dari, SD, UI, U2, U3, U4, U5, U6, SC, ST
+
+untuk tujuan adalah nama dealer atau storage atau gudang toyota di indonesia
+
+Untukk vendor adalah kombinasi dari
+PT. PARANI ARTAMANDIRI
+PT PUNINAR JAYA
+K LINE MOBARU DIAMOND INDONESIA
+PT. TOYOTA LOGISTRA PINGLOKA INDONESIA
+CARRIER - PT. KARYA PUTRA LOKATIRTA MANDIRI
+PT AGUNG CITRA TRANSFORMASI
+PT. ARTINDO NUSA GRAHA
+PT. INTERNUSA LOGISTIK
+PT. HADIDAYA SEJAHTERA PRATAMA
+MAN POWER CABANG
+PT UNITED TRANSINDO
+PT LINTAS TIMUR SEJAHTERA
+PT JAYA SAKTI SEJATI
+VESSEL PT KARYA PUTRA LOKATIRTA
+CV KEMBAR TUNGGAL
+PT. ANUGRAH KUSUMA
+PT EKSPEDISI TRANS JAYA
+PT. ANGKUTAN LOGISTIC PRIMA
+PT BAHTERA SAPTA PERMATA
+KOPERASI KARYAWAN NASMOCO
+PT. BERTINDO MITRA UTAMA
+PT BUMI JASA UTAMA
+PT. TOYOFUJI LOGISTICS INDONESIA
+PT. SUMBER MAS MOTOR
+PT. TOYOFUJI SERASI INDONESIA
+PT BORNEO JAYA SUKSES BERSAMA
+PT KENCANA SARI LOGISTICS
+PT SINAR INDO PRATAMA
+PT SAMUDERA SURI
+CV. MITRA PRIMA
+MAN POWER STORAGE
+PT. SERASI LOGISTICS INDONESIA
+STORAGE BATAM
+VENDOR WIRA MEGAH CAR CARRIER
+VENDOR WIRA SELF DRIVE
+CV. ZAEDI BERSAUDARA
+PT. ADRIAN CITRA MANDIRI
+CV. KENCANA GLOBALINDO MANDIRI
 
 TUGAS TAMBAHAN: 
 Berdasarkan nama dealer/lokasi tujuan yang kamu temukan, berikan juga estimasi titik koordinat geografis (Latitude dan Longitude) yang paling akurat di Indonesia untuk lokasi tersebut pada field 'estimated_lat' dan 'estimated_lng'.
