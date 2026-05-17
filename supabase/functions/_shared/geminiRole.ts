@@ -67,6 +67,7 @@ itu adalah kombinasi dari
 2. kombinasi tahun bulan tanggal, misal  20260505 kemudia tanda /
 3. kombinasi angka 4 digit kemudian tanda /
 4. kombinasi dari kode pengiriman dari, SD, UI, U2, U3, U4, U5, U6, SC, ST
+5. di nosjkb hanya kombinasi angkahuruf dan tanda / tidak ada karakter aneh di dalamnya
 
 untuk tujuan adalah nama dealer atau storage atau gudang toyota di indonesia
 
@@ -139,7 +140,7 @@ if (base64Images) {
     const images = Array.isArray(base64Images) ? base64Images : [base64Images];
     for (const img of images) {
       parts.push({
-        inline_data: { mime_type: 'image/webp', data: img }
+        inline_data: { mime_type: 'image/png', data: img }
       });
     }
     parts.push({ text: `${promptText}\n\nEKSTRAK DARI GAMBAR DI ATAS.` });
