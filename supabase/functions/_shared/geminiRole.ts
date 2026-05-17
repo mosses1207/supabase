@@ -34,13 +34,12 @@ async function getAvailableSlot() {
         apiKey,
         modelName: slot.models,
         modelCol: col,
-      };
+        };
     }
   }
   return null;
 }
 
-// FIX BUG #3: Update langsung tanpa read dulu (hindari race condition)
 async function markAsLimit(key: string, modelCol: string, modelName: string) {
   await supabase
     .from('apirole')
@@ -134,7 +133,7 @@ Catatan khusus untuk key "success": Berikan nilai true jika minimal 'no_sjkb' Da
 
   const parts: any[] = [];
 
-if (base64Images) {
+  if (base64Images) {
     const images = Array.isArray(base64Images) ? base64Images : [base64Images];
     for (const img of images) {
       parts.push({
@@ -150,7 +149,6 @@ if (base64Images) {
     throw new Error('Tidak ada gambar atau teks yang dikirim.');
   }
 
-  // FIX BUG #1: Ganti while(true) dengan batas retry eksplisit
   const MAX_RETRY = 10;
   let retryCount = 0;
 
@@ -171,7 +169,6 @@ if (base64Images) {
 
       if (res.status === 429 || res.status === 503) {
         console.warn(`Limit! ${slot.key} (${slot.modelCol}), ganti slot... [retry ${retryCount}/${MAX_RETRY}]`);
-        // FIX BUG #3: Kirim modelName agar update tidak perlu read dulu
         await markAsLimit(slot.key, slot.modelCol, slot.modelName);
         continue;
       }
@@ -185,7 +182,6 @@ if (base64Images) {
       const rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
       const clean = rawResponse.replace(/```json|```/g, '').trim();
 
-      // FIX BUG #2: Bungkus JSON.parse dengan try-catch
       try {
         return JSON.parse(clean);
       } catch {
@@ -193,15 +189,12 @@ if (base64Images) {
       }
 
     } catch (e: any) {
-      // FIX BUG #4: Jangan langsung re-throw — bedakan error fatal vs error slot
-      // Error dari JSON.parse atau Gemini non-retriable → lempar keluar
       if (
         e.message.startsWith('Respons Gemini bukan JSON valid') ||
         e.message.startsWith('Gemini error:')
       ) {
         throw e;
       }
-      // Error network/timeout → log, mark limit, coba slot lain
       console.warn(`Error network slot ${slot.key} [retry ${retryCount}/${MAX_RETRY}]:`, e.message);
       await markAsLimit(slot.key, slot.modelCol, slot.modelName);
       continue;
@@ -212,33 +205,72 @@ if (base64Images) {
 }
 
 // =========================================================================
-// 🎯 FUNGSI UTILITY: FUZZY MATCH (LEVENSHTEIN DISTANCE)
+// 🎯 FUNGSI UTILITY: NORMALISASI STRING
 // =========================================================================
-function hitungKemiripan(str1: string, str2: string): number {
-  const s1 = str1.toUpperCase().trim();
-  const s2 = str2.toUpperCase().trim();
-  
+function normalisasi(str: string): string {
+  return str
+    .toUpperCase()
+    .trim()
+    .replace(/\bPT\.?\s+/g, 'PT ')   // "PT." atau "PT. " → "PT "
+    .replace(/\bCV\.?\s+/g, 'CV ')   // "CV." atau "CV. " → "CV "
+    .replace(/[-_]/g, ' ')            // tanda hubung & underscore → spasi
+    .replace(/[^A-Z0-9 ]/g, '')      // buang karakter aneh selain huruf/angka/spasi
+    .replace(/\s+/g, ' ')             // multiple spasi → single spasi
+    .trim();
+}
+
+// =========================================================================
+// 🎯 FUNGSI UTILITY: LEVENSHTEIN DISTANCE (pada string ternormalisasi)
+// =========================================================================
+function skorLevenshtein(str1: string, str2: string): number {
+  const s1 = normalisasi(str1);
+  const s2 = normalisasi(str2);
+
   if (s1 === s2) return 1.0;
   if (s1.length === 0 || s2.length === 0) return 0.0;
 
-  const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
-  for (let i = 0; i <= s1.length; i += 1) track[0][i] = i;
-  for (let j = 0; j <= s2.length; j += 1) track[j][0] = j;
+  const track = Array(s2.length + 1)
+    .fill(null)
+    .map(() => Array(s1.length + 1).fill(null));
 
-  for (let j = 1; j <= s2.length; j += 1) {
-    for (let i = 1; i <= s1.length; i += 1) {
-      const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
+  for (let i = 0; i <= s1.length; i++) track[0][i] = i;
+  for (let j = 0; j <= s2.length; j++) track[j][0] = j;
+
+  for (let j = 1; j <= s2.length; j++) {
+    for (let i = 1; i <= s1.length; i++) {
+      const ind = s1[i - 1] === s2[j - 1] ? 0 : 1;
       track[j][i] = Math.min(
         track[j][i - 1] + 1,
         track[j - 1][i] + 1,
-        track[j - 1][i - 1] + indicator
+        track[j - 1][i - 1] + ind
       );
     }
   }
-  
-  const jarakPalingJauh = Math.max(s1.length, s2.length);
-  const hasilJarak = track[s2.length][s1.length];
-  return (jarakPalingJauh - hasilJarak) / jarakPalingJauh;
+
+  const maxLen = Math.max(s1.length, s2.length);
+  return (maxLen - track[s2.length][s1.length]) / maxLen;
+}
+
+// =========================================================================
+// 🎯 FUNGSI UTILITY: CONTAINMENT SCORE
+// =========================================================================
+function skorContainment(query: string, candidate: string): number {
+  const tokensQuery = normalisasi(query).split(' ').filter(Boolean);
+  const tokensCandidate = new Set(normalisasi(candidate).split(' ').filter(Boolean));
+
+  if (tokensQuery.length === 0) return 0;
+
+  const cocok = tokensQuery.filter(t => tokensCandidate.has(t)).length;
+  return cocok / tokensQuery.length;
+}
+
+// =========================================================================
+// 🎯 FUNGSI UTILITY: COMBINED SCORE (50% Levenshtein + 50% Containment)
+// =========================================================================
+function hitungKemiripan(str1: string, str2: string): number {
+  const lev         = skorLevenshtein(str1, str2);
+  const containment = skorContainment(str1, str2);
+  return 0.5 * lev + 0.5 * containment;
 }
 
 // =========================================================================
@@ -292,15 +324,29 @@ Deno.serve(async (req) => {
           }
 
           const persentaseConfidence = (skorTerbaik * 100).toFixed(1);
-          
-          if (skorTerbaik >= 0.80 && branchTerbaik) {
-            console.log(`[FUZZY MATCH KETEMU] "${namaBranchTujuan}" → "${branchTerbaik.branch}" (Confidence: ${persentaseConfidence}%)`);
+          const THRESHOLD_FUZZY = 0.70;
+
+          if (skorTerbaik >= THRESHOLD_FUZZY && branchTerbaik) {
+            console.log(
+              `[FUZZY MATCH] "${namaBranchTujuan}" → "${branchTerbaik.branch}" ` +
+              `(Confidence: ${persentaseConfidence}%)`
+            );
             namaBranchTujuan = branchTerbaik.branch;
             ruteLokal = branchTerbaik;
           } else {
-            console.warn(`[FUZZY GAGAL] Skor tertinggi hanya ${persentaseConfidence}%, di bawah limit 80%. Dianggap branch baru.`);
+            console.warn(
+              `[FUZZY GAGAL] "${namaBranchTujuan}" — skor tertinggi ${persentaseConfidence}% ` +
+              `(kandidat terkuat: "${branchTerbaik?.branch ?? '-'}"). ` +
+              `Di bawah threshold ${(THRESHOLD_FUZZY * 100).toFixed(0)}%. Dianggap branch baru.`
+            );
           }
         }
+      }
+
+      // 💥 FIX SINKRONISASI 1: Jika Fuzzy Match berhasil nemu data ruteLokal di database,
+      // paksa ganti key objek asli Gemini agar frontend menerima nama resmi ("ASTRIDO TOYOTA CILEUNGSI")
+      if (ruteLokal) {
+        hasilGemini.tujuan = ruteLokal.branch;
       }
 
       if (ruteLokal && ruteLokal.routes_compressed) {
@@ -312,25 +358,22 @@ Deno.serve(async (req) => {
           routes_data: ruteLokal.routes_compressed
         };
       } else {
-        console.log(`[RUTE] Cache Miss! Menyiapkan koordinat rute untuk ${namaBranchTujuan}...`);
+        console.log(`[RUTE] Cache Miss! Menyiapkan koordinat rute for ${namaBranchTujuan}...`);
 
         try {
           const koordinatOrigin = "107.08367451781723,-6.314409507556446";
           let koordinatDestination = null;
 
-          // FIX BUG #5: Parsing koordinat eksplisit dengan label variabel & validasi range
           if (ruteLokal && ruteLokal.kordinat) {
             const parts = ruteLokal.kordinat.split(',').map((p: string) => p.trim());
             if (parts.length === 2) {
               const lat = parseFloat(parts[0]);
               const lng = parseFloat(parts[1]);
-              // Validasi: lat Indonesia -11 s/d 6, lng 95 s/d 141
               if (
                 !isNaN(lat) && !isNaN(lng) &&
                 lat >= -11 && lat <= 6 &&
                 lng >= 95 && lng <= 141
               ) {
-                // DB simpan "lat, lng" → OSRM butuh "lng,lat"
                 koordinatDestination = `${lng},${lat}`;
                 console.log(`[DB KOORDINAT] lat=${lat}, lng=${lng} → OSRM: ${koordinatDestination}`);
               } else {
@@ -350,7 +393,6 @@ Deno.serve(async (req) => {
               aiLat >= -11 && aiLat <= 6 &&
               aiLng >= 95 && aiLng <= 141
             ) {
-              // OSRM butuh "lng,lat"
               koordinatDestination = `${aiLng},${aiLat}`;
               console.log(`[AI GEOLOCATION] lat=${aiLat}, lng=${aiLng} → OSRM: ${koordinatDestination}`);
 
@@ -393,6 +435,8 @@ Deno.serve(async (req) => {
             }
             const base64Compressed = btoa(binaryString);
 
+            // 💥 FIX SINKRONISASI 2: Pas rute di-generate OSRM live, 
+            // pastikan nama yang dikirim ke penampung rute selalu sinkron
             dataRuteTambahan = {
               source: "OSRM_LIVE",
               matched_branch: namaBranchTujuan,
