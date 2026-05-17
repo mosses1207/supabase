@@ -130,7 +130,7 @@ Wajib mengembalikan output dalam format JSON bersih tanpa markdown (jangan gunak
   "vendor": "string nama vendor logistik atau null"
 }
 
-Catatan khusus untuk key "success": Berikan nilai true jika minimal 'no_sjkb' ATAU 'tujuan' berhasil teridentifikasi. Jika keduanya gagal didapat, set menjadi false.
+Catatan khusus untuk key "success": Berikan nilai true jika minimal 'no_sjkb' Dan 'tujuan' berhasil teridentifikasi. Jika salah satu gagal didapat, set menjadi false.
   `.trim();
 
   const parts: any[] = [];
