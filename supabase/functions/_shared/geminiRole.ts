@@ -137,7 +137,7 @@ Catatan khusus untuk key "success": Berikan nilai true jika minimal 'no_sjkb' Da
     const images = Array.isArray(base64Images) ? base64Images : [base64Images];
     for (const img of images) {
       parts.push({
-        inline_data: { mime_type: 'image/jpeg', data: img }
+        inline_data: { mime_type: 'image/png', data: img }
       });
     }
     parts.push({ text: `${promptText}\n\nEKSTRAK DARI GAMBAR DI ATAS.` });
